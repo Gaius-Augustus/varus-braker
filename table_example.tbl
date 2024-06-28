@@ -1,0 +1,9 @@
+SPECIES_NAME DNA_LINK RNA_LINKS
+Drosophila melanogaster https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/001/215/GCF_000001215.4_Release_6_plus_ISO1_MT/GCF_000001215.4_Release_6_plus_ISO1_MT_genomic.fna.gz   /home/user/genomes/RNA/SRR13030903_1.fastq,/home/user/genomes/RNA/SRR13030903_2.fastq
+Tribolium castaneum     https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/002/335/GCF_000002335.3_Tcas5.2/GCF_000002335.3_Tcas5.2_genomic.fna.gz 
+Bombyx mori
+#You may add commentaries into the table and also use local files, need absolute path
+Drosophila Melanogaster /home/user/genomes/Drosophila/genome.fasta.masked
+Populus trichocarpa     /home/user/genomes/Populus/genome.fasta.masked
+Arabidopsis thaliana
+Caenorhabditis elegans
