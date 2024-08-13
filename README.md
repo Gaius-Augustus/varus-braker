@@ -1,9 +1,9 @@
-## varus-braker
+# varus-braker
 
 Genome Annotation Pipeline using BRAKER3
 This repository provides a small but powerful pipeline for automated genome annotation, integrating raw genome data with VARUS (or RNA-seq data) and running the BRAKER3 annotation tool. The pipeline is designed for users who need to annotate multiple species efficiently.
 
-## Key Features
+# Key Features
 
 Automated Data Retrieval: The pipeline automatically selects suitable RNA-seq data for each species if not provided. The only required input is a simple table listing species and optional links to their corresponding DNA and/or RNA data.
 BRAKER3 Integration: It seamlessly runs the BRAKER3 annotation tool to produce high-quality genome annotations.
@@ -11,7 +11,7 @@ High Throughput Compatibility: Built to run on any High-Performance Computing (H
 Getting Started
 To use this pipeline, provide a table with the list of species, along with optional links to DNA and RNA-seq data. The pipeline will handle the rest, retrieving RNA-seq data if necessary and performing the annotation using BRAKER3.
 
-# Use Cases
+## Use Cases
 Large-scale Genome Annotation Projects
 Research in Genomics and Bioinformatics
 
