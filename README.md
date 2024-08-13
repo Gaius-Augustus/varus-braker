@@ -54,6 +54,10 @@ For detailed instructions on setting up the environment, configuring the pipelin
 
 File config.ini should have pathways to all executables. 
 ```
+[MAIN]
+species_info = /home/user/data/list.tbl
+
+
 [VARUS]
 varus_path = /home/user/VARUS
 hisat2_path = /home/user/hisat2
