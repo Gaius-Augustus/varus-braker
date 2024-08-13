@@ -24,6 +24,7 @@ import configparser
 from contextlib import closing
 from os import path
 import glob
+
 #configfile: 'config/config.json'
 #defaults
 
@@ -62,12 +63,17 @@ hisat2_export_path = f"export PATH={hisat2_path}:$PATH" if hisat2_path else ""
 sratoolkit_export_path = f"export PATH={sratoolkit_path}:$PATH" if sratoolkit_path else ""  
 
 
+
 def get_output_name(wildcards):
     archive_path = wildcards.archive_path
     for ext in ['.tar.bz2', '.tar.gz', '.zip', '.tar']:
         if archive_path.endswith(ext):
             return archive_path.rsplit(ext, 1)[0]
     return archive_path + ".unknown"
+
+
+print (species_info)
+print ("______________")
 
 def build_fastq_info_dict(species_info):
     fastq_info_dict = {}
@@ -82,7 +88,9 @@ def build_fastq_info_dict(species_info):
             'RNA':  rna_link,
             'metadata_braker_version': ''
         }
+    print(fastq_info_dict)
     return fastq_info_dict
+
 
 def decompress_file(file_path):
     if file_path.endswith(".gz"):
@@ -113,9 +121,13 @@ def decompress_file(file_path):
     return file_path
     
 new_data_frame = build_fastq_info_dict(species_info)
+print (new_data_frame)
 
-
+print ("-------------------")
 new_data_frame = {key.replace(" ", "_"): value for key, value in new_data_frame.items()}
+
+print(new_data_frame.keys())
+print(new_data_frame.values())
 
 rna_files = {key: value['RNA'] for key, value in new_data_frame.items()}
 
@@ -125,6 +137,10 @@ for species, rnas in rna_files.items():
         rna_files[species] = rnas.split(",")
     else:
         rna_files[species] = []
+        
+print("RNA")
+print(rna_files)
+print("RNA!")
 sras = ""
 
 def rnasrc(wildcards):
@@ -134,14 +150,10 @@ def rnasrc(wildcards):
         # Case 1: Return file path if no RNA data available
         return wildcards.species + "/VARUS.bam"
     elif isinstance(rnas, list):
-        
-        # Case 3: Return None to indicate no file input is needed, handle IDs directly in the shell command
-        print("2: ", rnas)
-        sras = ''.join(rnas)
-        print("2: ", sras)
-        file = 'tmp'
-        open(file, 'a').close()
-        return file
+        if any(':' in item or '/' in item or '\\' in item for item in rnas):
+            return 1
+        else:
+            return 0
     else:
         # Case 2: Return file path if it's a single file
         print("3: ", rnas)
@@ -163,12 +175,110 @@ def species_species(wildcards):
     except Exception as e:
         return f"An error occurred: {str(e)}"
 
-subdirs = [d for d in glob.glob('./*/') if not glob.glob(f'{d}/*/')]  
+
+# First, we generate a list of all subdirectories at depth level 1
+subdirs = [d for d in glob.glob('./*/') if not glob.glob(f'{d}/*/')]  # This excludes deeper nested directories
+
+
 
 rule all:
     input:
         #expand('paths.txt', key=new_data_frame.keys()),
         expand("{key}/braker.gtf", key=new_data_frame.keys())
+        
+
+#rule download_file:
+#    output:
+#        "downloaded_file" # You can rename this to match the file you're downloading or keep it generic
+#    params:
+#        url = "your_download_link_here"
+#    shell:
+#        """
+#        wget -O {output} {params.url}
+#        """
+
+
+#rule download:
+
+#rule uncompress:
+#    output:    
+
+rule test0:
+    output:
+        "{f}/temp_file"  # Temporary output file, will be renamed later
+    params:
+        dna_link=lambda wildcards: new_data_frame[wildcards.f]["DNA"],
+    shell:
+        """
+        # Create the directory if it doesn't exist
+        mkdir -p {wildcards.f}
+        
+        # Determine filename from URL or local path
+        filename=$(basename {params.dna_link})
+        
+        # Check if the dna_link is a URL (HTTP, HTTPS, or FTP)
+        if [[ {params.dna_link} =~ ^https?:// ]] || [[ {params.dna_link} =~ ^ftp:// ]]; then
+            # It's a URL, download the file
+            wget -O {wildcards.f}/${{filename}} {params.dna_link}
+        else
+            # It's a local file, copy it to the target location with the target filename
+            cp {params.dna_link} {wildcards.f}/${{filename}}
+        fi
+        
+        # Since Snakemake expects an output file, touch a temporary file to satisfy Snakemake's requirement.
+        # This temp file can be deleted or ignored as needed.
+        touch {output.temp}
+        """
+
+        # Optional: If you need to work with the actual downloaded/copied file in subsequent rules,
+        # consider adding a Python script to your workflow that dynamically generates part of your Snakemake file
+        # or rules based on available files and their names.
+        
+
+#rule varus:
+#    output: ('{f}/')
+
+rule collect_paths:
+    input:
+        paths = expand('{subdir}/paths.tbl', subdir=subdirs)
+    output:
+        'paths.txt'
+    shell:
+        'cat {input.paths} > {output}'
+
+    
+rule collect_file_paths:
+    input:
+        expand('{key}/temp_file0.tbl', key=new_data_frame.keys()),
+        expand('{key}/temp_file_rna.tbl', key=new_data_frame.keys()),
+        
+        #"{key}/{acid}.tbl"
+    output:
+        paths_file="{key}/paths.tbl"
+        #"{key}/paths.tbl"
+    run:
+        import os
+
+        # Assuming new_data_frame is a dictionary with directory names as keys
+        # Let's define or import new_data_frame here (example below is a placeholder)
+        # new_data_frame = {'dir1': value1, 'dir2': value2, ...}
+        print("new")
+        directories = list(new_data_frame.keys())  # Convert dictionary keys to a list
+        print("DIRS ", directories )
+        # Open the output file as specified in the rule's output
+        with open(output.paths_file, 'w') as paths_file:
+            # Iterate over each directory in the list
+            for directory in directories:
+                # Check if the directory exists to avoid errors
+                if os.path.exists(directory):
+                    # Walk through each specified directory
+                    for dirpath, dirnames, filenames in os.walk(directory):
+                        # For each file, write its path to the paths_file
+                        for filename in filenames:
+                            # Construct the full path
+                            file_path = os.path.join(dirpath, filename)
+                            # Write the path to the file
+                            paths_file.write(file_path + '\n')
 
 rule download_dna:
     output:
@@ -179,6 +289,8 @@ rule download_dna:
         """
         # Create the directory if it doesn't exist
         mkdir -p {wildcards.f}
+        echo {params.dna_link}
+        echo "YOU ARE HERE"
         if [ -z "{params.dna_link}" ]; then
             # dna_link is empty, write "EMPTY" to the file
             taxon_name=$(echo "{wildcards.f}" | sed 's/_/ /g')
@@ -189,60 +301,107 @@ rule download_dna:
             # Assuming the extracted genome file could have various extensions
             genome_file=$(find {wildcards.f} -type f \( -name "*.fna" -o -name "*.fasta" -o -name "*.fa" \) | head -n 1)
             if [ -n "$genome_file" ]; then
+                
                 mv "$genome_file" {wildcards.f}/dna_file.fna
             fi
-           
+            
+
         else
-        # Check if the dna_link is a URL (HTTP, HTTPS, or FTP)
+            echo "case";
+            # Check if the dna_link is a URL (HTTP, HTTPS, or FTP)
             if [[ "{params.dna_link}" =~ ^https?:// ]] || [[ "{params.dna_link}" =~ ^ftp:// ]]; then
-                # It's a URL, use wget to download the file
-                wget -O {wildcards.f}/dna_file.fna {params.dna_link}
+            # It's a URL, use curl to download the file
+                curl -o {wildcards.f}/dna_file.tmp {params.dna_link}
+                # Check file type and unarchive if necessary
+                if file {wildcards.f}/dna_file.tmp | grep -q 'gzip compressed'; then
+                    if file {wildcards.f}/dna_file.tmp | grep -q '.tar'; then
+                        cp {wildcards.f}/dna_file.tmp {wildcards.f}/dna_file.tar.gz
+                        tar -xzvf {wildcards.f}/dna_file.tar.gz -C {wildcards.f}
+                        #mv {wildcards.f}/*.fna {wildcards.f}/dna_file.fna
+                    else 
+                        cp {wildcards.f}/dna_file.tmp {wildcards.f}/dna_file.gz
+                        gzip -d -c {wildcards.f}/dna_file.gz > {wildcards.f}/dna_file.fna
+                        #mv {wildcards.f}/*.fna {wildcards.f}/dna_file.fna
+                    fi     
+                elif file {wildcards.f}/dna_file.tmp | grep -q 'Zip archive'; then
+                    cp {wildcards.f}/dna_file.tmp {wildcards.f}/dna_file.zip
+                    unzip {wildcards.f}/dna_file.zip -d {wildcards.f}
+                    #mv {wildcards.f}/*.fna {wildcards.f}/dna_file.fna
+                else
+                    mv {wildcards.f}/dna_file.tmp {wildcards.f}/dna_file.fna
+                fi
             else
                 # It's a local file, copy it to the desired location
                 cp {params.dna_link} {wildcards.f}/dna_file.fna
-            fi    
+            fi
         fi
-        
         """
 
 rule download_rna:
     output:
-        "{f}/{f}_rna.txt",
-        "{f}/temp_file_rna.tbl"
+        #"{f}/list_rna.txt",
+        "{f}/temp_list_rna.tbl"
     params:
-        rna_link=lambda wildcards: new_data_frame[wildcards.f]["RNA"]     
+        # rna_link now returns a list of URLs or file paths
+        rna_link=lambda wildcards: new_data_frame[wildcards.f]["RNA"]
     shell:
         """
         # Create the directory if it doesn't exist
         mkdir -p {wildcards.f}
         
+        # Initialize temp_list_rna.tbl to store downloaded file paths
+        : > {output[0]}
         
-        echo {params.rna_link}
-        if [ -z "{params.rna_link}" ]; then
-            # rna_link is empty, write "EMPTY" to the file
-            echo "EMPTY_RNA" > {output[0]}
-            echo "EMPTY_RNA2" > {output[1]}
-            echo "emmty"
-        else
-            echo "case 2";
-        # Check if the rna_link is a URL (HTTP, HTTPS, or FTP)
-            if [[ "{params.rna_link}" =~ ^https?:// ]] || [[ "{params.rna_link}" =~ ^ftp:// ]]; then
+        # Process each link in the list
+        for link in $(echo {params.rna_link} | tr ',' '\n'); do
+            echo "Processing $link"
+            if [[ "$link" =~ ^https?:// ]] || [[ "$link" =~ ^ftp:// ]]; then
                 # It's a URL, use wget to download the file
-                wget -O {wildcards.f}/rna_file {params.rna_link}
+                echo "curl"
+                if [ -e "{wildcards.f}/$(basename $link .gz)" ]; then
+                    echo 'File already exists' >&2
+                else
+                    curl -o {wildcards.f}/$(basename $link) $link
+                fi
+                
+                echo "curl done"
+                if file {wildcards.f}/$(basename $link) | grep -q 'gzip compressed'; then
+                    if file {wildcards.f}/$(basename $link) | grep -q '.tar'; then
+                        #cp {wildcards.f}/$(basename $link) {wildcards.f}/rna_file.tar.gz
+                        tar -xzvf {wildcards.f}/$(basename $link) -C {wildcards.f}/$(basename $link .tar.gz)
+                        #mv {wildcards.f}/*.fna {wildcards.f}/dna_file.fna
+                        echo $(basename $link .tar.gz) >> {output[0]}
+                        #echo "{wildcards.f}/$(basename $link .tar.gz)" >> {output[0]}
+                    else 
+                        #cp {wildcards.f}/$(basename $link) {wildcards.f}/rna_file.gz
+                        #gzip -d -c {wildcards.f}/$(basename $link) > {wildcards.f}/$(basename $link .gz)
+                        echo $(basename $link .gz) >> {output[0]}
+                        #echo "{wildcards.f}/$(basename $link .gz)" >> {output[0]}
+                        #mv {wildcards.f}/*.fna {wildcards.f}/dna_file.fna
+                    fi     
+                elif file {wildcards.f}/dna_file.tmp | grep -q 'Zip archive'; then
+                    cp {wildcards.f}/dna_file.tmp {wildcards.f}/dna_file.zip
+                    unzip {wildcards.f}/dna_file.zip -d {wildcards.f}
+                    #mv {wildcards.f}/*.fna {wildcards.f}/dna_file.fna
+                #wget -O {wildcards.f}/$(basename $link) $link
+                fi
+                
             else
                 # It's a local file, copy it to the desired location
-                if [[ "{params.rna_link}" =~ ^/ ]]; then
-                    cp {params.rna_link} {wildcards.f}/rna_file.fa
-                else 
-
-                    echo {params.rna_link} > {wildcards.f}/rna_file.fa
+                if [[ "$link" =~ ^/ ]]; then
+                    cp $link {wildcards.f}/$(basename $link)
+                    echo "{wildcards.f}/$(basename $link)" >> {output[0]}
+                else
+                    echo "SRA ID: $link"
+                    echo $link  >> {output[0]}
                 fi
-             fi     
-        # Concatenate the downloaded or copied file with the output
+            fi
+        done
 
-        fi
         
         """
+
+
 
 rule find_protein_data:
     input:
@@ -371,7 +530,7 @@ rule repeat_masking:
 
 rule varus:
     input:
-        genome="{species}/dna_file.fna"
+        genome="{species}/dna_file_renamed.softmasked.fna"
     output:
         "{species}/VARUS.bam"
     params:
@@ -421,7 +580,7 @@ rule varus:
         # SLURM job script
         export PATH={params.hisat2_path}:$PATH
         export PATH={params.sratoolkit_path}:$PATH
-
+        echo "PREVARUS"
         # Run VARUS
         MINWAIT=10
         MAXWAIT=45
@@ -434,7 +593,7 @@ rule varus:
 rule braker:
     input:
         dna_path = "{species}/dna_file_renamed.softmasked.fna",
-        rna_path = rnasrc,  # Adjust the path if necessary
+        rna_list = "{species}/temp_list_rna.tbl", 
         proteins_file_path = "{species}/proteins.fasta"
     output:
         gtf = "{species}/braker.gtf"
@@ -449,40 +608,64 @@ rule braker:
         genemark_path=config['BRAKER']['genemark_path'],
         module_load=config['SLURM_ARGS']['module_load'],
         braker_cmd=config['BRAKER']['braker_cmd'],
-        partition=config['SLURM_ARGS']['partition']
+        partition=config['SLURM_ARGS']['partition'],
+        rnasrc=rnasrc
+        
     threads: 16
     resources:
         partition="snowball",
-        mem_mb=14000, 
-        slurm_extra= "--output=braker.%j.%N.out --error=braker.%j.%N.err  --mail-user=saenkos@uni-greifswald.de"
+        mem_mb=14000 
+        #slurm_extra= "--output={species}/braker.%j.%N.out --error=braker.%j.%N.err  --mail-user=saenkos@uni-greifswald.de"
     shell:
         """
         # Move to appropriate working directory
         cd {wildcards.species}  
         w_dir="{params.genus}_{params.species}_braker"
-        RNA_PATH="{input.rna_path}"
+        RNA_PATH="{input.rna_list}"
         # Check if output already exists
-
+        echo "PARAMS {params.rnasrc}" 
         # Determine RNA-seq input parameters
         rna_subline=""
-        if [ -z "{{input.rna_path}}" ]; then
+        echo {input.rna_list}
+        echo "599!"
+        echo $w_dir
+        paths=$(cat ../{input.rna_list} | tr '\\n' ',' | sed 's/,$//')
+        echo $paths
+        if [ -z "{{input.rna_list}}" ]; then
             rna_subline=""
+            
         elif [ "${{RNA_PATH: -3}}" == "bam" ]; then
-            rna_subline="--bam=VARUS.bam"
+            rna_subline="--bam=VARUS.bam --rnaseq_sets_dirs="
         else 
-            echo "${{RNA_PATH: -3}}"
+            if [ "{params.rnasrc}" == "1" ] ; then
+                echo "!!!!!!!!!!!!!!!!!!!1111111111111111111"
+                cleaned_paths=$(echo "$paths" | sed -E 's/(\.[^.,]*)//g')
+                echo $cleaned_paths
+                rna_subline="--rnaseq_sets_ids=$cleaned_paths --rnaseq_sets_dirs=./"
+            else
+                rna_subline="--rnaseq_sets_ids=$paths"
+            fi
         fi
-
+        echo "605!"
+        echo $rna_subline
+        echo "607!"
         # Environment and other parameters setup
-        # fix the bug {params.module_load}
+        echo {params.module_load}
         export LC_CTYPE=en_US.UTF-8
         export LC_ALL=en_US.UTF-8
-
+        echo "619!"
         genemark_export=""
         if [ -n "{params.genemark_path}" ]; then
             genemark_export="export PATH={params.genemark_path}/tools:$PATH"
         fi
+        id=$RANDOM
+
+        # Prepare temporary directory for processing
+        #mkdir /tmp/saenkos-$id
+
+        echo "632!"
         # Run BRAKER command
+  
         {params.braker_cmd} --AUGUSTUS_CONFIG_PATH={params.augustus_config_path} \
                             --AUGUSTUS_BIN_PATH={params.augustus_bin_path} \
                             --AUGUSTUS_SCRIPTS_PATH={params.augustus_scripts_path} \
@@ -496,4 +679,3 @@ rule braker:
         cd -
 
         """
-
