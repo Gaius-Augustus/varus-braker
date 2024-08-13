@@ -11,37 +11,18 @@ High Throughput Compatibility: Built to run on any High-Performance Computing (H
 Getting Started
 To use this pipeline, provide a table with the list of species, along with optional links to DNA and RNA-seq data. The pipeline will handle the rest, retrieving RNA-seq data if necessary and performing the annotation using BRAKER3.
 
-## Use Cases
-Large-scale Genome Annotation Projects
-Research in Genomics and Bioinformatics
 
-Detailed instructions on installation, usage, and configuration for different HPC environments are provided in the repository's documentation.
+# Included Tools
 
-## Software dependencies
+- **[BRAKER3](https://github.com/Gaius-Augustus/BRAKER):** A pipeline for the prediction of protein-coding genes.
+- **[VARUS](https://github.com/Gaius-Augustus/VARUS):** A tool for automated RNA-seq data selection.
+- **[BUSCO](https://busco.ezlab.org/):** Benchmarking Universal Single-Copy Orthologs to assess genome assembly completeness.
+- **[HISAT2](https://github.com/DaehwanKimLab/hisat2):** A fast and sensitive alignment program for mapping RNA-seq reads to genomes.
+- **[SRA Toolkit](https://github.com/ncbi/sra-tools):** Tools for working with data in the Sequence Read Archive (v3.0.2 or later).
+- **[GeneMark-ETP](https://github.com/gatech-genemark/GeneMark-ETP):** A suite for gene prediction, including support for RNA-seq.
 
-
-BRAKER3 from https://github.com/Gaius-Augustus/BRAKER
-
-The best way to use singularity container:
-
-```
-singularity build braker3.sif docker://teambraker/braker3:latest
-```
-
-VARUS from https://github.com/Gaius-Augustus/VARUS
-
-BUSCO from https://busco.ezlab.org/
-
-hisat2 https://github.com/DaehwanKimLab/hisat2
-
-sra-toolkit https://github.com/ncbi/sra-tools requeired version >= 3.0.2 \
-**Important: GeneMark-ETP has sra-tools included, but v3.0.1**
-
-GeneMark-ETP https://github.com/gatech-genemark/GeneMark-ETP
-
-## Usage
-
-Input should be a table with at least 1 column:
+# Getting Started
+Users need only provide a table with a list of species and optional DNA/RNA data links. The pipeline will automatically retrieve and process the necessary data, running the annotation through BRAKER3.
 
 See table_example.tbl
 Columns are divided by tab
@@ -59,11 +40,14 @@ Populus trichocarpa     /home/user/genomes/Populus/genome.fasta.masked
 Arabidopsis thaliana
 Caenorhabditis elegans
 ```
+## Use Cases
+Genome Annotation for Multiple Species
+Genomics Research and Bioinformatics Studies
+Installation and Usage
+For detailed instructions on setting up the environment, configuring the pipeline, and running it on various HPC systems, please refer to the repository's documentation.
 
-Command line:
-```
-varus-braker.py --input table.txt
-```
+
+
 
 
 ## Configuration
