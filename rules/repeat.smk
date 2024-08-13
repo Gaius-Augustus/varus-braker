@@ -1,3 +1,19 @@
+def check_fasta_needs_masking(path):
+    UPPER_PATTERN = r'^[ACGTN\s]+$'
+    LOWER_PATTERN = r'^[acgtn\s]+$'
+    try:
+        with open(path, 'r') as file:
+            contents = file.read()
+        if re.search(UPPER_PATTERN, contents):
+            return "upper"
+        elif re.search(LOWER_PATTERN, contents):
+            return "lower"
+        else:
+            return "mixed"
+    except UnicodeDecodeError as e:
+        print("Error reading the file:", str(e))
+        return "error"
+
 rule repeat_modeler:
     input:
         fasta="{species}/dna_file_renamed.fna"

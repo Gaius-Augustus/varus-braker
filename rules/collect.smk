@@ -1,3 +1,93 @@
+def decompress_file(file_path):
+    if file_path.endswith(".gz"):
+        with gzip.open(file_path, "rb") as gz_file:
+            with open(file_path[:-3], "wb") as unzipped_file:
+                unzipped_file.write(gz_file.read())
+        file_path = file_path[:-3]
+    elif file_path.endswith(".bz2") or file_path.endswith(".bzip2"):
+        with bz2.open(file_path, "rb") as bz2_file:
+            with open(file_path[:-4], "wb") as uncompressed_file:
+                uncompressed_file.write(bz2_file.read())
+        file_path = file_path[:-4]
+    elif file_path.endswith(".tar"):
+        with tarfile.open(file_path, "r") as tar:
+            tar.extractall()
+        file_path = file_path[:-4]
+    elif file_path.endswith(".zip"):
+        with zipfile.ZipFile(file_path, "r") as zip_ref:
+            zip_ref.extractall()
+        file_path = file_path[:-4]
+    elif file_path.endswith(".rar"):
+        with rarfile.RarFile(file_path, "r") as rar_ref:
+            rar_ref.extractall()
+        file_path = file_path[:-4]
+    else:
+        print("Uncompressed file of wrong archive format: ", file_path)
+        return (file_path)
+    return file_path
+
+def get_output_name(wildcards):
+    archive_path = wildcards.archive_path
+    for ext in ['.tar.bz2', '.tar.gz', '.zip', '.tar']:
+        if archive_path.endswith(ext):
+            return archive_path.rsplit(ext, 1)[0]
+    return archive_path + ".unknown"
+
+
+#convert spiceis and link list ti dictionary
+def build_fastq_info_dict(species_info):
+    fastq_info_dict = {}
+    for index, row in species_info.iterrows():
+        species_id = row['ID']
+        dna_link = row['DNA'] if pd.notna(row['DNA']) else ''
+        rna_link = row['RNA'] if pd.notna(row['RNA']) else ''
+        
+        # Include 'ID' inside each species' dictionary
+        fastq_info_dict[species_id] = {
+            'DNA':  dna_link,
+            'RNA':  rna_link,
+            'metadata_braker_version': ''
+        }
+    print(fastq_info_dict)
+    return fastq_info_dict
+
+
+
+def rename_fasta(input_file):
+    output_file = os.path.splitext(input_file)[0] + "_renamed" + os.path.splitext(input_file)[1]
+    translation_table = {}
+    print("blabla")
+    with open(input_file, 'r') as in_file, open(output_file, 'w') as out_file:
+        count = 0
+        for line in in_file:
+            if line.startswith('>'):
+                count += 1
+                old_header = line.strip()[1:]
+                new_header = f'seq{count}'
+                translation_table[old_header] = new_header
+                out_file.write(f'>{new_header}\n')
+            else:
+                out_file.write(line)
+    with open(input_file + '.translation_table.txt', 'w') as tt_file:
+        for old_header, new_header in translation_table.items():
+            tt_file.write(f'{old_header}\t{new_header}\n')
+    return output_file, translation_table
+
+
+#DEBUG
+print (species_info)
+print ("______________")
+   
+species_dict = build_fastq_info_dict(species_info)
+print (species_dict)
+
+print ("-------------------")
+species_dict = {key.replace(" ", "_"): value for key, value in species_dict.items()}
+
+#DEBUG
+print(species_dict.keys())
+print(species_dict.values())
+
 rule collect_paths:
     input:
         paths = expand('{subdir}/paths.tbl', subdir=subdirs)
@@ -6,12 +96,12 @@ rule collect_paths:
     shell:
         'cat {input.paths} > {output}'
 
-
+    
 rule collect_file_paths:
     input:
-        expand('{key}/temp_file0.tbl', key=new_data_frame.keys()),
-        expand('{key}/temp_file_rna.tbl', key=new_data_frame.keys()),
-
+        expand('{key}/temp_file0.tbl', key=species_dict.keys()),
+        expand('{key}/temp_file_rna.tbl', key=species_dict.keys()),
+        
         #"{key}/{acid}.tbl"
     output:
         paths_file="{key}/paths.tbl"
@@ -19,11 +109,11 @@ rule collect_file_paths:
     run:
         import os
 
-        # Assuming new_data_frame is a dictionary with directory names as keys
-        # Let's define or import new_data_frame here (example below is a placeholder)
-        # new_data_frame = {'dir1': value1, 'dir2': value2, ...}
+        # Assuming species_dict is a dictionary with directory names as keys
+        # Let's define or import species_dict here (example below is a placeholder)
+        # species_dict = {'dir1': value1, 'dir2': value2, ...}
         print("new")
-        directories = list(new_data_frame.keys())  # Convert dictionary keys to a list
+        directories = list(species_dict.keys())  # Convert dictionary keys to a list
         print("DIRS ", directories )
         # Open the output file as specified in the rule's output
         with open(output.paths_file, 'w') as paths_file:
@@ -44,7 +134,7 @@ rule download_dna:
     output:
         "{f}/dna_file.fna"
     params:
-        dna_link=lambda wildcards: new_data_frame[wildcards.f]["DNA"]
+        dna_link=lambda wildcards: species_dict[wildcards.f]["DNA"]     
     shell:
         """
         # Create the directory if it doesn't exist
@@ -61,10 +151,10 @@ rule download_dna:
             # Assuming the extracted genome file could have various extensions
             genome_file=$(find {wildcards.f} -type f \( -name "*.fna" -o -name "*.fasta" -o -name "*.fa" \) | head -n 1)
             if [ -n "$genome_file" ]; then
-
+                echo "$genome_file" > {wildcards.f}/accession_ID.txt
                 mv "$genome_file" {wildcards.f}/dna_file.fna
             fi
-
+            
 
         else
             echo "case";
@@ -78,11 +168,11 @@ rule download_dna:
                         cp {wildcards.f}/dna_file.tmp {wildcards.f}/dna_file.tar.gz
                         tar -xzvf {wildcards.f}/dna_file.tar.gz -C {wildcards.f}
                         #mv {wildcards.f}/*.fna {wildcards.f}/dna_file.fna
-                    else
+                    else 
                         cp {wildcards.f}/dna_file.tmp {wildcards.f}/dna_file.gz
                         gzip -d -c {wildcards.f}/dna_file.gz > {wildcards.f}/dna_file.fna
                         #mv {wildcards.f}/*.fna {wildcards.f}/dna_file.fna
-                    fi
+                    fi     
                 elif file {wildcards.f}/dna_file.tmp | grep -q 'Zip archive'; then
                     cp {wildcards.f}/dna_file.tmp {wildcards.f}/dna_file.zip
                     unzip {wildcards.f}/dna_file.zip -d {wildcards.f}
@@ -99,19 +189,18 @@ rule download_dna:
 
 rule download_rna:
     output:
-        #"{f}/list_rna.txt",
         "{f}/temp_list_rna.tbl"
     params:
         # rna_link now returns a list of URLs or file paths
-        rna_link=lambda wildcards: new_data_frame[wildcards.f]["RNA"]
+        rna_link=lambda wildcards: species_dict[wildcards.f]["RNA"]
     shell:
         """
         # Create the directory if it doesn't exist
         mkdir -p {wildcards.f}
-
+        
         # Initialize temp_list_rna.tbl to store downloaded file paths
         : > {output[0]}
-
+        
         # Process each link in the list
         for link in $(echo {params.rna_link} | tr ',' '\n'); do
             echo "Processing $link"
@@ -123,7 +212,7 @@ rule download_rna:
                 else
                     curl -o {wildcards.f}/$(basename $link) $link
                 fi
-
+                
                 echo "curl done"
                 if file {wildcards.f}/$(basename $link) | grep -q 'gzip compressed'; then
                     if file {wildcards.f}/$(basename $link) | grep -q '.tar'; then
@@ -132,20 +221,20 @@ rule download_rna:
                         #mv {wildcards.f}/*.fna {wildcards.f}/dna_file.fna
                         echo $(basename $link .tar.gz) >> {output[0]}
                         #echo "{wildcards.f}/$(basename $link .tar.gz)" >> {output[0]}
-                    else
+                    else 
                         #cp {wildcards.f}/$(basename $link) {wildcards.f}/rna_file.gz
                         #gzip -d -c {wildcards.f}/$(basename $link) > {wildcards.f}/$(basename $link .gz)
                         echo $(basename $link .gz) >> {output[0]}
                         #echo "{wildcards.f}/$(basename $link .gz)" >> {output[0]}
                         #mv {wildcards.f}/*.fna {wildcards.f}/dna_file.fna
-                    fi
+                    fi     
                 elif file {wildcards.f}/dna_file.tmp | grep -q 'Zip archive'; then
                     cp {wildcards.f}/dna_file.tmp {wildcards.f}/dna_file.zip
                     unzip {wildcards.f}/dna_file.zip -d {wildcards.f}
                     #mv {wildcards.f}/*.fna {wildcards.f}/dna_file.fna
                 #wget -O {wildcards.f}/$(basename $link) $link
                 fi
-
+                
             else
                 # It's a local file, copy it to the desired location
                 if [[ "$link" =~ ^/ ]]; then
@@ -158,7 +247,10 @@ rule download_rna:
             fi
         done
 
+        
         """
+
+
 
 rule find_protein_data:
     input:
@@ -198,45 +290,6 @@ rule find_protein_data:
         done
         """
 
-
-
-def check_fasta_needs_masking(path):
-    UPPER_PATTERN = r'^[ACGTN\s]+$'
-    LOWER_PATTERN = r'^[acgtn\s]+$'
-    try:
-        with open(path, 'r') as file:
-            contents = file.read()
-        if re.search(UPPER_PATTERN, contents):
-            return "upper"
-        elif re.search(LOWER_PATTERN, contents):
-            return "lower"
-        else:
-            return "mixed"
-    except UnicodeDecodeError as e:
-        print("Error reading the file:", str(e))
-        return "error"
-
-
-
-def rename_fasta(input_file):
-    output_file = os.path.splitext(input_file)[0] + "_renamed" + os.path.splitext(input_file)[1]
-    translation_table = {}
-    print("blabla")
-    with open(input_file, 'r') as in_file, open(output_file, 'w') as out_file:
-        count = 0
-        for line in in_file:
-            if line.startswith('>'):
-                count += 1
-                old_header = line.strip()[1:]
-                new_header = f'seq{count}'
-                translation_table[old_header] = new_header
-                out_file.write(f'>{new_header}\n')
-            else:
-                out_file.write(line)
-    with open(input_file + '.translation_table.txt', 'w') as tt_file:
-        for old_header, new_header in translation_table.items():
-            tt_file.write(f'{old_header}\t{new_header}\n')
-    return output_file, translation_table
 
 rule rename_fasta:
     input:

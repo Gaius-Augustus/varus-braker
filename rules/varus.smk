@@ -1,3 +1,14 @@
+
+
+rna_files = {key: value['RNA'] for key, value in species_dict.items()}
+
+# make actual lists from the file name string
+for species, rnas in rna_files.items():
+    if rnas != '':
+        rna_files[species] = rnas.split(",")
+    else:
+        rna_files[species] = []
+
 rule varus:
     input:
         genome="{species}/dna_file_renamed.softmasked.fna"
@@ -9,13 +20,13 @@ rule varus:
         sratoolkit_path=config["VARUS"]["sratoolkit_path"],
         batchsize=config["VARUS"]["batchsize"],
         maxbatches=config["VARUS"]["maxbatches"],
-        partition="snowball",
+        partition="snowball",  
         genus=lambda wildcards: wildcards.species.split('_')[0],
         species=lambda wildcards: wildcards.species.split('_')[1],
-    threads: 28
+    threads: 28    
     resources:
         partition="snowball",
-        mem_mb=14000
+        mem_mb=14000        
     shell:
         """
         cd {wildcards.species}
