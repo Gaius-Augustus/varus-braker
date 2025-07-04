@@ -70,7 +70,7 @@ sub mostDistantNode{
             $bestScore = $leafScore;
         }
     }
-    print ("Farest node from " . $sinkNode->id . " is " . $farestNode->id . " with distance $max and score $bestScore\n");
+    # print ("Farest node from " . $sinkNode->id . " is " . $farestNode->id . " with distance $max and score $bestScore\n");
     return $farestNode;
 }
 
