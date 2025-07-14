@@ -56,24 +56,21 @@ sub condenseTree{
 
 my $taxscore;
 
-my %scores;
-while(my $line = <$taxscore>) {
-    chomp $line;
-    my ($taxid, $score) = split / /, $line;
-    $scores{$taxid} = $score;
-}
-
 sub mostDistantNode{
     my ($tree, $sinkNode, $nodeSet, $scores) = @_;
     my $max = 0;
     my $farestNode;
+    my $bestScore = 0;
     foreach my $leaf (@{$nodeSet}){
         my $distance = $tree->distance(-nodes => [$sinkNode,$leaf]);
-        if ($max<$distance || ($max == $distance && $scores{$leaf->id} > $scores{$sinkNode->id})){
+        my $leafScore = defined($scores) && defined($scores->{$leaf->id}) ? $scores->{$leaf->id} : 0;
+        if ($max < $distance || ($max == $distance && $leafScore > $bestScore)){
             $max = $distance;
             $farestNode = $leaf;
+            $bestScore = $leafScore;
         }
     }
+    # print ("Farest node from " . $sinkNode->id . " is " . $farestNode->id . " with distance $max and score $bestScore\n");
     return $farestNode;
 }
 
@@ -96,14 +93,19 @@ my $filenameSave;
 my $taxa;
 
 
-my %scores;
-while(my $line = <$taxscore>) {
-    chomp $line;
-    my ($taxid, $score) = split / /, $line;
-    $scores{$taxid} = $score;
-}
-
 GetOptions( 'size=i' => \$n, 'save=s' => \$filenameSave, 'taxa=s' => \$taxa, 'score=s' => \$taxscore);
+
+# Read scores from file if provided
+my %scores;
+if ($taxscore) {
+    open(SCORE, "<$taxscore") || die "\nCouldn't open score file $taxscore.\n";
+    while(my $line = <SCORE>) {
+        chomp $line;
+        my ($taxid, $score) = split /\s+/, $line;
+        $scores{$taxid} = $score;
+    }
+    close(SCORE);
+}
 
 
 
@@ -149,7 +151,7 @@ if ($filenameSave){
 
     # if there is only 1 node in the input list, we search directly for the farest node to add it and to complete the initialization
     if ($#saveNodes == 0){
-        push(@saveNodes,mostDistantNode($tree, $saveNodes[0], \@leaves));
+        push(@saveNodes,mostDistantNode($tree, $saveNodes[0], \@leaves, \%scores));
     }
 
     # search for the actual lca of all nodes we already want to have in out output at this position
@@ -166,7 +168,7 @@ if ($taxa){
     my @saveNode;
     push(@saveNode,$tree->find_node(-id => $taxa));
     # there is only 1 node in the input list, so we search directly for the farest node to add it and to complete the initialization
-    push(@saveNode,mostDistantNode($tree, $saveNode[0], \@leaves));
+    push(@saveNode,mostDistantNode($tree, $saveNode[0], \@leaves, \%scores));
 
     # search for the actual lca of all nodes we already want to have in out output at this position
     $actualLca = $tree->get_lca(-nodes => \@saveNode);
@@ -180,8 +182,8 @@ if ($taxa){
 my @pair;
 if (!$actualLca){
     @leaves = $tree->get_leaf_nodes;
-    my $maxDistNode1 = mostDistantNode($tree, $leaves[0], \@leaves);
-    my $maxDistNode2 = mostDistantNode($tree, $maxDistNode1, \@leaves);
+    my $maxDistNode1 = mostDistantNode($tree, $leaves[0], \@leaves, \%scores);
+    my $maxDistNode2 = mostDistantNode($tree, $maxDistNode1, \@leaves, \%scores);
     push(@pair,$maxDistNode1);
     push(@pair,$maxDistNode2);
     push(@selection,@pair);
@@ -193,7 +195,7 @@ while ($n>$#selection+1){
     condenseTree($tree, $actualLca, \@pair);
     @leaves = $tree->get_leaf_nodes;
 
-    my $startnodeThis = mostDistantNode($tree, $actualLca, \@leaves);
+    my $startnodeThis = mostDistantNode($tree, $actualLca, \@leaves, \%scores);
     push(@selection,$startnodeThis);
 
     @pair=();
